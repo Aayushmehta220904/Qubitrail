@@ -2,6 +2,7 @@
 from __future__ import annotations
 import os
 import traceback
+import sys
 from pathlib import Path
 from typing import Any
 from fastapi import FastAPI, HTTPException
@@ -15,7 +16,13 @@ from .guide import respond
 from .research import repair_suite
 from . import qiskit_bridge
 
-store.init()
+# Don't take the whole API offline if ephemeral SQLite fails to initialize.
+# Storage operations will report their own errors; core simulation can remain usable.
+try:
+    store.init()
+except Exception as exc:
+    print(f"Qubitrail: SQLite initialization failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+
 app=FastAPI(title='Qubitrail Quantum Studio API',version='1.0.0',docs_url='/api/docs',openapi_url='/api/openapi.json')
 app.add_middleware(CORSMiddleware,allow_origins=['http://localhost:5173','http://127.0.0.1:5173'],allow_credentials=False,allow_methods=['*'],allow_headers=['*'])
 
@@ -62,7 +69,7 @@ async def circuit_error_handler(request,exc):
     return JSONResponse(status_code=400,content={'detail':str(exc)})
 
 @app.get('/api/health')
-def health():return {'status':'healthy','project':'Qubitrail','engine':'NumPy quantum simulation','maxQubits':q.MAX_QUBITS,'database':'SQLite','hardwareRequired':False}
+def health():return {'status':'healthy','project':'Qubitrail','engine':'NumPy quantum simulation','maxQubits':q.MAX_QUBITS,'database':'Ephemeral SQLite (Vercel)' if os.environ.get('VERCEL') else 'SQLite (local)','hardwareRequired':False}
 
 @app.get('/api/qiskit/status')
 def qiskit_status():return qiskit_bridge.status()
@@ -167,12 +174,23 @@ def experiments(limit:int=50):return store.list_experiments(limit)
 @app.post('/api/guide')
 def guide(body:GuideIn):return respond(body.message,q.validate(body.circuit))
 
-FRONT=Path(__file__).resolve().parent.parent/'frontend'
-app.mount('/assets',StaticFiles(directory=FRONT),name='assets')
+ROOT = Path(__file__).resolve().parent.parent
+FRONT = ROOT / 'frontend'
+if not FRONT.is_dir():
+    FRONT = ROOT / 'public'
+if FRONT.is_dir():
+    app.mount('/assets',StaticFiles(directory=(FRONT / 'assets') if (FRONT / 'assets').is_dir() else FRONT),name='assets')
 @app.get('/')
-def home():return FileResponse(FRONT/'index.html')
+def home():
+    index = FRONT/'index.html'
+    if not index.is_file():
+        raise HTTPException(503, 'Frontend files are missing from the deployed function.')
+    return FileResponse(index)
 @app.get('/{path:path}',include_in_schema=False)
 def spa_fallback(path:str):
     # No accidental HTML for missing API calls.
     if path.startswith('api/'):raise HTTPException(404,'Endpoint not found.')
-    return FileResponse(FRONT/'index.html')
+    index = FRONT/'index.html'
+    if not index.is_file():
+        raise HTTPException(503, 'Frontend files are missing from the deployed function.')
+    return FileResponse(index)

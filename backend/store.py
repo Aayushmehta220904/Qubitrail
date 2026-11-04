@@ -6,7 +6,11 @@ import uuid
 from pathlib import Path
 from datetime import datetime, timezone
 
-DATA=Path(os.environ.get('QUBITRAIL_DATA_DIR',Path(__file__).resolve().parent.parent/'data'))
+# Vercel's function filesystem is read-only except /tmp. /tmp storage is
+# temporary and NOT durable; use an external database for permanent projects.
+_default_data_dir = ('/tmp/qubitrail' if (os.environ.get('VERCEL') or os.environ.get('VERCEL_ENV'))
+                     else str(Path(__file__).resolve().parent.parent / 'data'))
+DATA = Path(os.environ.get('QUBITRAIL_DATA_DIR') or _default_data_dir)
 DATA.mkdir(parents=True,exist_ok=True)
 DB=DATA/'qubitrail.db'
 

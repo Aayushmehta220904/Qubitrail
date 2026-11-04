@@ -120,3 +120,8 @@ run.py                 Local launcher
 API docs after starting server: **http://127.0.0.1:8000/api/docs**.
 
 **Updating from V2 or V3:** The safest path is to replace only the old `frontend/` directory with the new `frontend/` files. Do not delete your existing `data/` directory. The full-project ZIP contains the same backend files as V2 but deliberately does not package an example database.
+
+
+## Deploy to Vercel
+
+See [VERCEL_DEPLOYMENT.md](VERCEL_DEPLOYMENT.md) for platform fixes and important persistence/security warnings.
