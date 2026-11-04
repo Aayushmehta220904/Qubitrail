@@ -1,0 +1,9 @@
+services:
+  qubitrail:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - qubitrail-data:/app/data
+volumes:
+  qubitrail-data:
